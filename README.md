@@ -1,74 +1,45 @@
-# Fight/Violence Detection Dataset and Model Overview
+# Phat Hien Dan Chien
 
-This repository contains a dataset and YOLOv8 models (nano and small) trained to detect fights/violence and non-violence/no-fight in both videos and images. The models are optimized for surveillance and security applications where detecting physical confrontations is crucial.
+Du an phat hien dan chien / bat chuong su dung YOLOv8 (nano va small) nhan dien hanh dong bao luc trong video va anh.
 
-## Dataset Overview
+## Model
 
-- **Dataset Classes:** The dataset consists of two classes:
-  1. **Violence/Fight:** Instances where physical violence is present.
-  2. **NoViolence/NoFight:** Instances with no physical confrontations.
-  
-- **Data Format:** 
-  - **Videos** and **Images** are labeled accordingly for each class.
-  - The dataset is designed for training deep learning models like YOLOv8 for violence detection.
+- `best.pt` - Model YOLOv8 duoc train san
+- `Yolo_nano_weights.pt` - YOLOv8-nano
+- `yolo_small_weights.pt` - YOLOv8-small
 
-## Models
+## Cai Dat
 
-- **YOLOv8 Models:** 
-  - We have primarily trained **YOLOv8-nano** and **YOLOv8-small** models.
-  - These models are lightweight and efficient, making them suitable for real-time detection tasks in resource-constrained environments.
+```bash
+pip install -r requirements.txt
+```
 
-## Purpose
+## Su Dung
 
-The models are trained to accurately detect violent events in various settings, including crowds, public spaces, and sports activities.
+### webcam (phan tich thoi gian thuc)
+```bash
+python detect.py --source 0 --weights best.pt
+```
 
-### Key Features:
-- **Single Class Detection:**
-  - The attached code is specifically designed to detect **one class** at a time, with the focus being on the **Violence/Fight** class.
-  - If the purpose is to detect only **Violence/Fight**, the models and code are pre-configured for this task.
-  - Non-violence events are ignored during detection, allowing the model to concentrate solely on identifying violent actions.
+### Video
+```bash
+python detect.py --source video.mp4 --weights best.pt --save
+```
 
-## Code and Usage Instructions
+### Anh
+```bash
+python detect.py --source image.jpg --weights best.pt --save
+```
 
-### Pre-requisites:
-- Python 3.8 or higher
-- YOLOv8 (Ultralytics)
-- PyTorch
-- OpenCV
+## Tham So
 
-### Running the Detection:
-
-1. **Clone the Repository**:
-    ```bash
-    git clone (https://github.com/Musawer1214/Fight-Violence-detection-yolov8)
-    cd <repository-directory>
-    ```
-
-2. **Install Dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3. **Run Single Class Detection (Violence/Fight)**:
-   The provided script detects only the **Violence/Fight** class in both videos and images.
-
-    ```bash
-    python detect.py --weights best.pt --source <input-video-or-image-path> --class 1 --save-txt
-    ```
-
-   Replace `<input-video-or-image-path>` with the path to the video or image you wish to analyze. The **class ID** for **Violence/Fight** is **1**.
-
-4. **Model Weights**:
-    - The `best.pt` file contains the pre-trained YOLOv8-nano or YOLOv8-small model optimized for detecting violence/fights.
-
-## Notes
-
-- **Model Performance:** The models are trained on a diverse set of images to generalize across different environments. However, additional fine-tuning may be required depending on your specific use case.
-- **Future Enhancements:** We plan to extend the dataset and include more diverse scenarios to improve detection accuracy, including sports, public gatherings, and more.
-
----
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-
+| Tham so | Mac dinh | Mo ta |
+|---------|----------|-------|
+| `--weights` | `best.pt` | Duong dan file model |
+| `--source` | `0` | Camera / video / anh |
+| `--class` | `1` | Lop can nhan dien (1 = Violence) |
+| `--conf` | `0.5` | Nguong chung min |
+| `--save` | - | Luu anh/video da ghi nhan |
+| `--save-txt` | - | Luu ket qua ra file .txt |
+| `--realtime` | - | Hien thi khung hinh webcam |
+| `--view-fps` | - | Hien thi FPS tren man hinh |
