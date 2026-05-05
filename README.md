@@ -10,6 +10,21 @@ Du an phat hien dan chien / bat chuong su dung YOLOv8 (nano va small) nhan dien 
 
 ## Cai Dat
 
+Tao moi truong ao:
+```bash
+python -m venv venv
+```
+
+Kich hoat moi truong:
+```bash
+# Windows
+venv\Scripts\activate
+
+# Linux/Mac
+source venv/bin/activate
+```
+
+Cai dat thu vien:
 ```bash
 pip install -r requirements.txt
 ```
