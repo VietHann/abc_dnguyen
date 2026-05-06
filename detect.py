@@ -1,6 +1,8 @@
 import argparse
 import os
 import time
+import threading
+import queue
 from pathlib import Path
 
 import cv2
@@ -104,25 +106,42 @@ def run_realtime(model, args, camera_index=0):
 
     print(f"Camera {camera_index} opened. Press 'q' to quit.")
 
-    frame_count = 0
-    fps = 0.0
+    frame_queue = queue.Queue(maxsize=5)
+    violence_class = args.class_id
+    running = True
+
+    def read_frames():
+        while running:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            if frame_queue.full():
+                try:
+                    frame_queue.get_nowait()
+                except queue.Empty:
+                    pass
+            frame_queue.put(frame)
+
+    reader = threading.Thread(target=read_frames, daemon=True)
+    reader.start()
+
+    display_fps = 0.0
     fps_update_time = time.time()
     fps_frame_count = 0
-    violence_class = args.class_id
     violence_frames = 0
     CONFIRM_THRESHOLD = 5
+    last_has_violence = False
 
     while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Error: Failed to read frame from camera.")
-            break
+        try:
+            frame = frame_queue.get(timeout=5)
+        except queue.Empty:
+            continue
 
-        frame_count += 1
         fps_frame_count += 1
         elapsed = time.time() - fps_update_time
         if elapsed >= 1.0:
-            fps = fps_frame_count / elapsed
+            display_fps = fps_frame_count / elapsed
             fps_frame_count = 0
             fps_update_time = time.time()
 
@@ -194,11 +213,15 @@ def run_realtime(model, args, camera_index=0):
                 (0, 0, 255),
                 3,
             )
-            print(f"[!] Violence detected | FPS: {fps:.1f}")
+            if not last_has_violence:
+                print(f"[!] Violence detected | FPS: {display_fps:.1f}")
+            last_has_violence = True
+        else:
+            last_has_violence = False
 
         cv2.putText(
             frame,
-            f"FPS: {fps:.1f}",
+            f"FPS: {display_fps:.1f}",
             (10, 30),
             cv2.FONT_HERSHEY_SIMPLEX,
             1.0,
@@ -210,8 +233,10 @@ def run_realtime(model, args, camera_index=0):
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
             print("Exiting...")
+            running = False
             break
 
+    reader.join(timeout=2)
     cap.release()
     cv2.destroyAllWindows()
 
