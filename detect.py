@@ -111,9 +111,6 @@ def run_realtime(model, args, camera_index=0):
     violence_class = args.class_id
     violence_frames = 0
     CONFIRM_THRESHOLD = 5
-    last_results = None
-    last_has_violence = False
-    SKIP_FRAMES = 3  # chi chay model moi 3 frame
 
     while True:
         ret, frame = cap.read()
@@ -129,61 +126,60 @@ def run_realtime(model, args, camera_index=0):
             fps_frame_count = 0
             fps_update_time = time.time()
 
-        if frame_count % SKIP_FRAMES == 1:
-            results = model.predict(
-                source=frame,
-                classes=[violence_class, 0],
-                conf=args.conf,
-                imgsz=args.imgsz,
-                verbose=False,
+        results = model.predict(
+            source=frame,
+            classes=[violence_class, 0],
+            conf=args.conf,
+            imgsz=args.imgsz,
+            verbose=False,
+        )
+
+        boxes = results[0].boxes
+        has_violence = False
+
+        for box in boxes:
+            cls_id = int(box.cls[0])
+            conf = float(box.conf[0])
+            x1, y1, x2, y2 = int(box.xyxy[0][0]), int(box.xyxy[0][1]), int(box.xyxy[0][2]), int(box.xyxy[0][3])
+
+            area = (x2 - x1) * (y2 - y1)
+            frame_area = frame.shape[0] * frame.shape[1]
+            if area < frame_area * 0.005:
+                continue
+
+            if cls_id == violence_class:
+                has_violence = True
+                color = (0, 0, 255)
+                label = f"VIOLENCE {conf:.2f}"
+                thickness = 3
+            else:
+                color = (0, 255, 0)
+                label = f"Person {conf:.2f}"
+                thickness = 2
+
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+
+            (label_w, label_h), baseline = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
             )
-            last_results = results
-            last_has_violence = False
+            cv2.rectangle(
+                frame,
+                (x1, y1 - label_h - 8),
+                (x1 + label_w, y1),
+                color,
+                -1,
+            )
+            cv2.putText(
+                frame,
+                label,
+                (x1, y1 - 4),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 255),
+                2,
+            )
 
-            boxes = results[0].boxes
-            for box in boxes:
-                cls_id = int(box.cls[0])
-                conf = float(box.conf[0])
-                x1, y1, x2, y2 = int(box.xyxy[0][0]), int(box.xyxy[0][1]), int(box.xyxy[0][2]), int(box.xyxy[0][3])
-
-                area = (x2 - x1) * (y2 - y1)
-                frame_area = frame.shape[0] * frame.shape[1]
-                if area < frame_area * 0.005:
-                    continue
-
-                if cls_id == violence_class:
-                    last_has_violence = True
-                    color = (0, 0, 255)
-                    label = f"VIOLENCE {conf:.2f}"
-                    thickness = 3
-                else:
-                    color = (0, 255, 0)
-                    label = f"Person {conf:.2f}"
-                    thickness = 2
-
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
-
-                (label_w, label_h), baseline = cv2.getTextSize(
-                    label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
-                )
-                cv2.rectangle(
-                    frame,
-                    (x1, y1 - label_h - 8),
-                    (x1 + label_w, y1),
-                    color,
-                    -1,
-                )
-                cv2.putText(
-                    frame,
-                    label,
-                    (x1, y1 - 4),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (255, 255, 255),
-                    2,
-                )
-
-        if last_has_violence:
+        if has_violence:
             violence_frames += 1
         else:
             violence_frames = 0
@@ -198,6 +194,7 @@ def run_realtime(model, args, camera_index=0):
                 (0, 0, 255),
                 3,
             )
+            print(f"[!] Violence detected | FPS: {fps:.1f}")
 
         cv2.putText(
             frame,
@@ -207,15 +204,6 @@ def run_realtime(model, args, camera_index=0):
             1.0,
             (0, 255, 255),
             2,
-        )
-        cv2.putText(
-            frame,
-            f"Model every {SKIP_FRAMES} frames",
-            (10, 105),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            (150, 150, 150),
-            1,
         )
 
         cv2.imshow("Violence Detection", frame)
