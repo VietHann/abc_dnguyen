@@ -1,0 +1,1914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GUARDIAN — Violence Detection System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #05060a;
+            --surface: #0c0f18;
+            --surface2: #111525;
+            --border: #1a1f33;
+            --red: #ff2d55;
+            --red-dim: rgba(255, 45, 85, 0.15);
+            --cyan: #00d4ff;
+            --cyan-dim: rgba(0, 212, 255, 0.12);
+            --green: #00ff88;
+            --green-dim: rgba(0, 255, 136, 0.12);
+            --amber: #ffb800;
+            --text: #d4d8e8;
+            --text-muted: #4a5178;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Space Mono', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Subtle grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--border) 1px, transparent 1px),
+                linear-gradient(90deg, var(--border) 1px, transparent 1px);
+            background-size: 60px 60px;
+            opacity: 0.25;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Header */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: rgba(5, 6, 10, 0.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 2rem;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+            opacity: 0.4;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .brand-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--red), #ff6b6b);
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+        }
+
+        .brand-icon svg { width: 20px; height: 20px; stroke: white; fill: none; stroke-width: 2; }
+
+        .brand-name {
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 1.25rem;
+            letter-spacing: 4px;
+            background: linear-gradient(135deg, var(--text), var(--cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .model-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .model-badge .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 6px var(--green);
+        }
+
+        .model-badge.loading .dot {
+            background: var(--amber);
+            box-shadow: 0 0 6px var(--amber);
+            animation: pulse 1.5s infinite;
+        }
+
+        .model-badge.error .dot {
+            background: var(--red);
+            box-shadow: 0 0 6px var(--red);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Layout */
+        .layout {
+            position: relative;
+            z-index: 1;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem;
+        }
+
+        /* Stats bar */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+        }
+
+        .stat.uptime::before { background: var(--cyan); }
+        .stat.violence::before { background: var(--red); }
+        .stat.persons::before { background: var(--green); }
+        .stat.total::before { background: var(--amber); }
+        .stat.fps::before { background: #a855f7; }
+
+        .stat-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .stat.violence .stat-value { color: var(--red); }
+        .stat.persons .stat-value { color: var(--green); }
+        .stat.uptime .stat-value { color: var(--cyan); }
+        .stat.fps .stat-value { color: #a855f7; }
+
+        /* Main grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Feed panel */
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.875rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .panel-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .panel-title svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+        .rec-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .rec-badge .rec-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .rec-badge.live .rec-dot {
+            background: var(--red);
+            animation: pulse 1s infinite;
+        }
+
+        .rec-badge.live .rec-text { color: var(--red); }
+
+        /* Feed area */
+        .feed-area {
+            position: relative;
+            background: #000;
+            min-height: 420px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #feedCanvas {
+            display: none;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        #feedVideo {
+            display: none;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Corner brackets */
+        .feed-area .corner {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-color: var(--cyan);
+            border-style: solid;
+            opacity: 0.5;
+        }
+        .corner.tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; }
+        .corner.tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+        .corner.bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; }
+        .corner.br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
+
+        /* Feed overlay info */
+        .feed-info {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            font-size: 0.6rem;
+            color: var(--cyan);
+            opacity: 0.7;
+            letter-spacing: 1px;
+        }
+
+        .feed-fps {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            font-size: 0.6rem;
+            color: #a855f7;
+            opacity: 0.7;
+            letter-spacing: 1px;
+        }
+
+        /* Upload zone */
+        .upload-zone {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            min-height: 420px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: absolute;
+            inset: 0;
+        }
+
+        .upload-zone:hover { background: rgba(0, 212, 255, 0.03); }
+        .upload-zone.drag-over { background: rgba(0, 212, 255, 0.08); border-color: var(--cyan); }
+
+        .upload-zone.hidden { display: none; }
+
+        .upload-icon {
+            width: 48px;
+            height: 48px;
+            stroke: var(--text-muted);
+            fill: none;
+            stroke-width: 1.5;
+            margin-bottom: 1rem;
+        }
+
+        .upload-text {
+            font-family: 'Syne', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+        }
+
+        .upload-sub {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            opacity: 0.6;
+        }
+
+        #fileInput { display: none; }
+
+        /* Processing overlay */
+        .processing-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(5, 6, 10, 0.88);
+            display: grid;
+            place-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            z-index: 10;
+        }
+
+        .processing-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid var(--border);
+            border-top-color: var(--cyan);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .processing-text {
+            margin-top: 1rem;
+            font-family: 'Syne', sans-serif;
+            font-size: 0.75rem;
+            letter-spacing: 3px;
+            color: var(--cyan);
+        }
+
+        /* Violence alert overlay */
+        .violence-alert {
+            position: absolute;
+            inset: 0;
+            border: 3px solid var(--red);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 5;
+        }
+
+        .violence-alert.active {
+            opacity: 1;
+            animation: violencePulse 0.8s ease-in-out infinite;
+        }
+
+        @keyframes violencePulse {
+            0%, 100% { border-color: var(--red); box-shadow: inset 0 0 30px rgba(255, 45, 85, 0.2); }
+            50% { border-color: #ff6b6b; box-shadow: inset 0 0 60px rgba(255, 45, 85, 0.4); }
+        }
+
+        /* Detection log panel */
+        .log-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            height: 540px;
+        }
+
+        .log-header {
+            padding: 0.875rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .log-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .log-title svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+        .log-count {
+            background: var(--red);
+            color: white;
+            font-size: 0.6rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 10px;
+            font-weight: 700;
+            min-width: 22px;
+            text-align: center;
+        }
+
+        .log-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .log-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 0.25rem 0.6rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.6rem;
+            font-family: 'Space Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+        }
+
+        .log-btn:hover {
+            border-color: var(--cyan);
+            color: var(--cyan);
+        }
+
+        .log-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.75rem;
+        }
+
+        .log-body::-webkit-scrollbar { width: 4px; }
+        .log-body::-webkit-scrollbar-track { background: transparent; }
+        .log-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+        .log-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            gap: 0.75rem;
+        }
+
+        .log-empty svg { width: 32px; height: 32px; stroke: var(--text-muted); fill: none; stroke-width: 1.5; opacity: 0.4; }
+
+        .log-entry {
+            display: grid;
+            grid-template-columns: 60px auto 1fr auto;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.6rem;
+            border-radius: 6px;
+            margin-bottom: 0.4rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-left: 2px solid transparent;
+            font-size: 0.65rem;
+            transition: background 0.2s;
+        }
+
+        .log-entry:hover { background: rgba(0, 0, 0, 0.35); }
+
+        .log-entry.violence { border-left-color: var(--red); background: var(--red-dim); }
+        .log-entry.person { border-left-color: var(--green); background: var(--green-dim); }
+
+        .log-time { color: var(--text-muted); font-size: 0.6rem; }
+
+        .log-type-badge {
+            padding: 0.15rem 0.4rem;
+            border-radius: 3px;
+            font-family: 'Syne', sans-serif;
+            font-size: 0.6rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            white-space: nowrap;
+        }
+
+        .log-type-badge.violence { background: var(--red-dim); color: var(--red); }
+        .log-type-badge.person { background: var(--green-dim); color: var(--green); }
+
+        .log-conf-track {
+            height: 3px;
+            background: var(--border);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .log-conf-bar {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+
+        .log-conf-bar.violence { background: var(--red); }
+        .log-conf-bar.person { background: var(--green); }
+
+        .log-conf-val { font-size: 0.6rem; color: var(--text-muted); text-align: right; min-width: 32px; }
+
+        /* Controls */
+        .controls {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+
+        .control-section-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .control-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--cyan);
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+        }
+
+        .slider-val {
+            font-family: 'Syne', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--cyan);
+            min-width: 36px;
+            text-align: right;
+        }
+
+        .btn-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.75rem;
+            margin-top: 1.25rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-family: 'Syne', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            border: none;
+        }
+
+        .btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+        .btn-webcam {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .btn-webcam:hover { border-color: var(--cyan); color: var(--cyan); }
+
+        .btn-webcam.active {
+            background: var(--cyan-dim);
+            border-color: var(--cyan);
+            color: var(--cyan);
+        }
+
+        .btn-upload {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .btn-upload:hover { border-color: var(--amber); color: var(--amber); }
+
+        .btn-stop {
+            background: var(--red);
+            color: white;
+        }
+
+        .btn-stop:hover { box-shadow: 0 0 20px rgba(255, 45, 85, 0.4); }
+        .btn-stop:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 1rem 2rem;
+            color: var(--text-muted);
+            font-size: 0.6rem;
+            letter-spacing: 1px;
+            border-top: 1px solid var(--border);
+            margin-top: 1.5rem;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 80px;
+            right: 1.5rem;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .toast {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.875rem 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            min-width: 280px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+            animation: slideIn 0.3s ease;
+            font-size: 0.75rem;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .toast.error { border-color: var(--red); }
+        .toast.success { border-color: var(--green); }
+        .toast.info { border-color: var(--cyan); }
+        .toast.warning { border-color: var(--amber); }
+
+        .toast svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; flex-shrink: 0; }
+        .toast.error svg { color: var(--red); }
+        .toast.success svg { color: var(--green); }
+        .toast.info svg { color: var(--cyan); }
+        .toast.warning svg { color: var(--amber); }
+
+        .toast-close {
+            margin-left: auto;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0.2rem;
+        }
+
+        .toast-close svg { width: 12px; height: 12px; }
+
+        .toast-close:hover { color: var(--text); }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .main-grid { grid-template-columns: 1fr; }
+            .stats-bar { grid-template-columns: repeat(3, 1fr); }
+            .log-panel { height: 400px; }
+        }
+
+        @media (max-width: 768px) {
+            .header { padding: 0 1rem; }
+            .layout { padding: 1rem; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); }
+            .controls-grid { grid-template-columns: 1fr; }
+            .btn-row { grid-template-columns: 1fr; }
+        }
+
+        /* Image result view */
+        .result-image-container {
+            display: none;
+            position: absolute;
+            inset: 0;
+        }
+
+        .result-image-container.visible {
+            display: block;
+        }
+
+        .result-image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Video playback */
+        .video-container {
+            display: none;
+            position: absolute;
+            inset: 0;
+        }
+
+        .video-container.visible {
+            display: block;
+        }
+
+        .video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Evidence Vault */
+        .evidence-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .evidence-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .evidence-header {
+            padding: 0.875rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .evidence-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--amber);
+        }
+
+        .evidence-title svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+        .evidence-status {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .evidence-status .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .evidence-status.active .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+        .evidence-status.error .dot { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+        .evidence-body {
+            padding: 1rem 1.25rem;
+        }
+
+        .evidence-desc {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+
+        .evidence-actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .btn-evidence {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-family: 'Syne', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            border: none;
+        }
+
+        .btn-evidence svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+        .btn-capture {
+            background: transparent;
+            border: 1px solid var(--amber);
+            color: var(--amber);
+        }
+
+        .btn-capture:hover:not(:disabled) {
+            background: rgba(255, 184, 0, 0.1);
+            box-shadow: 0 0 16px rgba(255, 184, 0, 0.3);
+        }
+
+        .btn-capture:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .btn-capture.saving {
+            opacity: 0.7;
+            cursor: wait;
+        }
+
+        /* Evidence log */
+        .evidence-log-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            max-height: 280px;
+        }
+
+        .evidence-log-header {
+            padding: 0.875rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .evidence-log-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--amber);
+        }
+
+        .evidence-log-title svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+        .evidence-log-count {
+            background: var(--amber);
+            color: #000;
+            font-size: 0.6rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 10px;
+            font-weight: 700;
+        }
+
+        .evidence-log-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.75rem;
+        }
+
+        .evidence-log-body::-webkit-scrollbar { width: 4px; }
+        .evidence-log-body::-webkit-scrollbar-track { background: transparent; }
+        .evidence-log-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+        .evidence-log-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            min-height: 100px;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            gap: 0.5rem;
+        }
+
+        .evidence-log-empty svg { width: 24px; height: 24px; stroke: var(--text-muted); fill: none; stroke-width: 1.5; opacity: 0.4; }
+
+        .evidence-entry {
+            padding: 0.6rem;
+            border-radius: 6px;
+            margin-bottom: 0.4rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-left: 2px solid var(--amber);
+            font-size: 0.6rem;
+        }
+
+        .evidence-entry:hover { background: rgba(0, 0, 0, 0.35); }
+
+        .evidence-entry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.3rem;
+        }
+
+        .evidence-token {
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            color: var(--amber);
+        }
+
+        .evidence-time { color: var(--text-muted); }
+
+        .evidence-hash {
+            font-family: monospace;
+            font-size: 0.55rem;
+            color: var(--text-muted);
+            word-break: break-all;
+            line-height: 1.4;
+        }
+
+        .evidence-chain-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.55rem;
+            font-weight: 700;
+            margin-top: 0.25rem;
+        }
+
+        .evidence-chain-badge.ipfs { background: rgba(0, 212, 255, 0.1); color: var(--cyan); }
+        .evidence-chain-badge.onchain { background: rgba(255, 184, 0, 0.1); color: var(--amber); }
+        .evidence-chain-badge.local { background: rgba(74, 81, 120, 0.3); color: var(--text-muted); }
+
+        .evidence-processing {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem;
+            color: var(--amber);
+            font-size: 0.7rem;
+        }
+
+        .evidence-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--amber);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="brand">
+            <div class="brand-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <span class="brand-name">GUARDIAN</span>
+        </div>
+        <div class="header-right">
+            <div class="model-badge" id="modelBadge">
+                <span class="dot"></span>
+                <span id="modelText">Checking model...</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="layout">
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat uptime">
+                <div class="stat-label">System Uptime</div>
+                <div class="stat-value" id="statUptime">00:00:00</div>
+            </div>
+            <div class="stat violence">
+                <div class="stat-label">Violence Events</div>
+                <div class="stat-value" id="statViolence">0</div>
+            </div>
+            <div class="stat persons">
+                <div class="stat-label">Person Detections</div>
+                <div class="stat-value" id="statPersons">0</div>
+            </div>
+            <div class="stat total">
+                <div class="stat-label">Total Detections</div>
+                <div class="stat-value" id="statTotal">0</div>
+            </div>
+            <div class="stat fps">
+                <div class="stat-label">Processing FPS</div>
+                <div class="stat-value" id="statFPS">—</div>
+            </div>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="main-grid">
+            <!-- Feed Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">
+                        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        LIVE FEED
+                    </span>
+                    <span class="rec-badge" id="recBadge">
+                        <span class="rec-dot"></span>
+                        <span class="rec-text" id="recText">IDLE</span>
+                    </span>
+                </div>
+                <div class="feed-area" id="feedArea">
+                    <canvas id="feedCanvas"></canvas>
+                    <video id="feedVideo" autoplay playsinline muted></video>
+                    <div class="corner tl"></div>
+                    <div class="corner tr"></div>
+                    <div class="corner bl"></div>
+                    <div class="corner br"></div>
+                    <div class="feed-info" id="feedInfo">AWAITING INPUT</div>
+                    <div class="feed-fps" id="feedFPS"></div>
+
+                    <div class="upload-zone" id="uploadZone">
+                        <svg class="upload-icon" viewBox="0 0 24 24">
+                            <polyline points="16 16 12 12 8 16"/>
+                            <line x1="12" y1="12" x2="12" y2="21"/>
+                            <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                        </svg>
+                        <span class="upload-text">Drop file or click to upload</span>
+                        <span class="upload-sub">MP4, AVI, MOV, JPG, PNG</span>
+                    </div>
+                    <input type="file" id="fileInput" accept="video/*,image/*">
+
+                    <div class="result-image-container" id="resultImageContainer">
+                        <img id="resultImage" alt="Detection result">
+                    </div>
+
+                    <div class="video-container" id="videoContainer">
+                        <video id="resultVideo" controls></video>
+                    </div>
+
+                    <div class="processing-overlay" id="processingOverlay">
+                        <div>
+                            <div class="spinner"></div>
+                            <div class="processing-text">ANALYZING</div>
+                        </div>
+                    </div>
+
+                    <div class="violence-alert" id="violenceAlert"></div>
+                </div>
+            </div>
+
+            <!-- Detection Log -->
+            <div class="log-panel">
+                <div class="log-header">
+                    <span class="log-title">
+                        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                        Detection Log
+                        <span class="log-count" id="logCount">0</span>
+                    </span>
+                    <div class="log-actions">
+                        <button class="log-btn" id="pauseBtn">Pause</button>
+                        <button class="log-btn" id="clearBtn">Clear</button>
+                    </div>
+                </div>
+                <div class="log-body" id="logBody">
+                    <div class="log-empty" id="logEmpty">
+                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <span>No detections yet</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Evidence Vault Grid -->
+        <div class="evidence-grid">
+            <!-- Evidence Vault Panel -->
+            <div class="evidence-panel">
+                <div class="evidence-header">
+                    <span class="evidence-title">
+                        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                        Evidence Vault
+                    </span>
+                    <span class="evidence-status" id="evidenceStatus">
+                        <span class="dot"></span>
+                        <span id="evidenceStatusText">Offline</span>
+                    </span>
+                </div>
+                <div class="evidence-body">
+                    <p class="evidence-desc">
+                        Captures the current detection frame and stores it as immutable evidence
+                        using IPFS + Blockchain technology. Once saved, the evidence hash cannot
+                        be altered or deleted — ensuring tamper-proof school violence records.
+                    </p>
+                    <div class="evidence-actions">
+                        <button class="btn-evidence btn-capture" id="captureEvidenceBtn" disabled>
+                            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                            <span id="captureBtnText">Capture Frame</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Evidence Log -->
+            <div class="evidence-log-panel">
+                <div class="evidence-log-header">
+                    <span class="evidence-log-title">
+                        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        Blockchain Evidence Log
+                        <span class="evidence-log-count" id="evidenceLogCount">0</span>
+                    </span>
+                    <button class="log-btn" id="clearEvidenceBtn">Clear</button>
+                </div>
+                <div class="evidence-log-body" id="evidenceLogBody">
+                    <div class="evidence-log-empty" id="evidenceLogEmpty">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        <span>No evidence captured yet</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <div class="controls-grid">
+                <div>
+                    <div class="control-section-title">Detection Settings</div>
+                    <div class="control-group">
+                        <div class="control-label">Confidence Threshold</div>
+                        <div class="slider-row">
+                            <input type="range" id="confSlider" min="10" max="95" value="50">
+                            <span class="slider-val" id="confValue">0.50</span>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div class="control-section-title">Classes</div>
+                    <div class="slider-row" style="gap: 1rem;">
+                        <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.7rem;cursor:pointer;">
+                            <input type="checkbox" id="checkPerson" checked style="accent-color:var(--green)">
+                            Person
+                        </label>
+                        <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.7rem;cursor:pointer;">
+                            <input type="checkbox" id="checkViolence" checked style="accent-color:var(--red)">
+                            Violence
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-webcam" id="webcamBtn">
+                    <svg viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                    Webcam
+                </button>
+                <button class="btn btn-upload" id="uploadBtn">
+                    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Upload File
+                </button>
+                <button class="btn btn-stop" id="stopBtn" disabled>
+                    <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"/></svg>
+                    Stop
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        GUARDIAN v2.5.0 | YOLOv8 Violence Detection | &copy; 2026
+    </footer>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // ============================================================
+        // State
+        // ============================================================
+        const state = {
+            webcamActive: false,
+            webcamStream: null,
+            webcamInterval: null,
+            logPaused: false,
+            logCount: 0,
+            violenceEvents: 0,
+            personEvents: 0,
+            totalEvents: 0,
+            confidence: 0.5,
+            showPerson: true,
+            showViolence: true,
+            lastFPS: 0,
+            uptimeStart: null,
+            processingVideo: false,
+            resultImageShown: false,
+            resultVideoShown: false,
+            evidenceCount: 0,
+            evidencePaused: false,
+        };
+
+        // ============================================================
+        // DOM
+        // ============================================================
+        const $ = id => document.getElementById(id);
+        const canvas = $('feedCanvas');
+        const ctx = canvas.getContext('2d');
+        const video = $('feedVideo');
+        const uploadZone = $('uploadZone');
+        const fileInput = $('fileInput');
+        const processingOverlay = $('processingOverlay');
+        const violenceAlert = $('violenceAlert');
+        const recBadge = $('recBadge');
+        const recText = $('recText');
+        const feedInfo = $('feedInfo');
+        const feedFPS = $('feedFPS');
+        const logBody = $('logBody');
+        const logEmpty = $('logEmpty');
+        const logCount = $('logCount');
+        const modelBadge = $('modelBadge');
+        const modelText = $('modelText');
+        const resultImageContainer = $('resultImageContainer');
+        const resultImage = $('resultImage');
+        const videoContainer = $('videoContainer');
+        const captureEvidenceBtn = $('captureEvidenceBtn');
+        const captureBtnText = $('captureBtnText');
+        const evidenceStatus = $('evidenceStatus');
+        const evidenceStatusText = $('evidenceStatusText');
+        const evidenceLogBody = $('evidenceLogBody');
+        const evidenceLogEmpty = $('evidenceLogEmpty');
+        const evidenceLogCount = $('evidenceLogCount');
+        const clearEvidenceBtn = $('clearEvidenceBtn');
+
+        // ============================================================
+        // Utilities
+        // ============================================================
+        function toast(msg, type = 'info') {
+            const icons = { error: 'x-circle', success: 'check-circle', info: 'info', warning: 'alert-triangle' };
+            const container = $('toastContainer');
+            const t = document.createElement('div');
+            t.className = `toast ${type}`;
+            t.innerHTML = `
+                <svg viewBox="0 0 24 24"><path d="${getIconPath(icons[type])}"/></svg>
+                <span>${msg}</span>
+                <button class="toast-close" onclick="this.parentElement.remove()">
+                    <svg viewBox="0 0 24 24" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            `;
+            container.appendChild(t);
+            setTimeout(() => t.remove(), 5000);
+        }
+
+        function getIconPath(name) {
+            const paths = {
+                'x-circle': 'M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-4-9a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm8 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z',
+                'check-circle': 'M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4L12 14.01l-3-3',
+                'info': 'M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-11v6h2v-6h-2zm0-4v2h2V7h-2z',
+                'alert-triangle': 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01'
+            };
+            return paths[name] || '';
+        }
+
+        function formatTime(date) {
+            return date.toLocaleTimeString('en-US', { hour12: false });
+        }
+
+        // ============================================================
+        // Backend API
+        // ============================================================
+        async function checkBackend() {
+            try {
+                const resp = await fetch('/api/status');
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const data = await resp.json();
+
+                modelBadge.className = data.model_loaded ? 'model-badge' : 'model-badge error';
+                modelText.textContent = data.model_loaded
+                    ? `${data.model} — ${data.classes[0]}/${data.classes[1]}`
+                    : 'Model not loaded';
+
+                // Update stats
+                $('statViolence').textContent = data.violence_detections;
+                $('statTotal').textContent = data.total_detections;
+
+                // Set uptime
+                state.uptimeStart = Date.now() - (data.uptime_seconds || 0) * 1000;
+
+                return data;
+            } catch (e) {
+                modelBadge.className = 'model-badge error';
+                modelText.textContent = 'Backend offline';
+                return null;
+            }
+        }
+
+        async function detectFile(file, conf) {
+            processingOverlay.classList.add('active');
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('conf', conf);
+
+            try {
+                const resp = await fetch('/api/detect', { method: 'POST', body: formData });
+                const data = await resp.json();
+
+                if (!data.success) {
+                    toast(data.error || 'Detection failed', 'error');
+                    return;
+                }
+
+                // Show result image
+                if (data.file_type === 'image' && data.result_image) {
+                    resultImage.src = `data:image/jpeg;base64,${data.result_image}`;
+                    resultImageContainer.classList.add('visible');
+                    canvas.style.display = 'none';
+                    uploadZone.classList.add('hidden');
+                    videoContainer.classList.remove('visible');
+                    state.resultImageShown = true;
+                    state.resultVideoShown = false;
+                    feedInfo.textContent = `${data.filename} — ${data.violence_count} violence, ${data.person_count} persons`;
+                    enableCaptureIfReady();
+                }
+
+                // Show video result
+                if (data.file_type === 'video') {
+                    feedInfo.textContent = `${data.filename} — ${data.total_violence_events} violence events across ${data.processed_frames} frames`;
+                    // For video, just show processing summary
+                    toast(`Video processed: ${data.total_violence_events} violence events found`, data.total_violence_events > 0 ? 'warning' : 'success');
+                }
+
+                // Log detections
+                if (data.file_type === 'image') {
+                    for (const det of data.detections) {
+                        if ((det.class === 'violence' && state.showViolence) ||
+                            (det.class === 'person' && state.showPerson)) {
+                            addLogEntry(det.class, det.confidence);
+                        }
+                    }
+                } else if (data.file_type === 'video') {
+                    for (const frameData of data.all_detections) {
+                        for (const det of frameData.detections) {
+                            if ((det.class === 'violence' && state.showViolence) ||
+                                (det.class === 'person' && state.showPerson)) {
+                                addLogEntry(det.class, det.confidence);
+                            }
+                        }
+                    }
+                }
+
+                // Update stats
+                $('statViolence').textContent = data.violence_count || 0;
+                $('statTotal').textContent = data.total_objects || 0;
+
+                const procTime = data.processing_time ? `Processed in ${data.processing_time}s` : '';
+                toast(`Detection complete — ${data.total_objects} objects found${procTime ? ', ' + procTime : ''}`, 'success');
+
+            } catch (e) {
+                toast('Network error during detection: ' + e.message, 'error');
+            } finally {
+                processingOverlay.classList.remove('active');
+            }
+        }
+
+        async function processFrame(imageData, conf) {
+            const t0 = performance.now();
+            try {
+                const resp = await fetch('/api/webcam/detect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ frame: imageData, conf })
+                });
+                const data = await resp.json();
+
+                if (!data.success) return null;
+
+                state.lastFPS = Math.round(1000 / (performance.now() - t0));
+                feedFPS.textContent = `${state.lastFPS} FPS`;
+
+                return data;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // ============================================================
+        // Log
+        // ============================================================
+        function addLogEntry(type, confidence) {
+            if (state.logPaused) return;
+
+            logEmpty.style.display = 'none';
+            state.logCount++;
+
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `
+                <span class="log-time">${formatTime(new Date())}</span>
+                <span class="log-type-badge ${type}">${type}</span>
+                <div class="log-conf-track">
+                    <div class="log-conf-bar ${type}" style="width:${confidence * 100}%"></div>
+                </div>
+                <span class="log-conf-val">${(confidence * 100).toFixed(0)}%</span>
+            `;
+            logBody.appendChild(entry);
+            logBody.scrollTop = logBody.scrollHeight;
+            logCount.textContent = state.logCount;
+
+            // Limit entries
+            while (logBody.children.length > 100) {
+                logBody.removeChild(logBody.children[1]);
+            }
+
+            // Update stats
+            if (type === 'violence') {
+                state.violenceEvents++;
+                $('statViolence').textContent = state.violenceEvents;
+                flashViolenceAlert();
+            } else {
+                state.personEvents++;
+                $('statPersons').textContent = state.personEvents;
+            }
+            state.totalEvents++;
+            $('statTotal').textContent = state.totalEvents;
+        }
+
+        function flashViolenceAlert() {
+            violenceAlert.classList.add('active');
+            setTimeout(() => violenceAlert.classList.remove('active'), 2000);
+        }
+
+        // ============================================================
+        // Webcam
+        // ============================================================
+        async function startWebcam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+                state.webcamStream = stream;
+                video.srcObject = stream;
+                video.style.display = 'none';   // hide raw video
+                canvas.style.display = 'block'; // show annotated canvas
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                canvas.style.objectFit = 'contain';
+                uploadZone.classList.add('hidden');
+                resultImageContainer.classList.remove('visible');
+                videoContainer.classList.remove('visible');
+                state.resultImageShown = false;
+                state.resultVideoShown = false;
+
+                video.play();
+
+                state.webcamActive = true;
+                recBadge.classList.add('live');
+                recText.textContent = 'LIVE';
+                feedInfo.textContent = 'WEBCAM ACTIVE';
+
+                $('webcamBtn').classList.add('active');
+                $('webcamBtn').innerHTML = `
+                    <svg viewBox="0 0 24 24"><line x1="1" y1="1" x2="23" y2="23"/><path d="M21 21H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2h-3"/></svg>
+                    Stop Webcam
+                `;
+                $('stopBtn').disabled = false;
+
+                // Set canvas size to match actual video dimensions
+                const setCanvasSize = () => {
+                    const w = video.videoWidth || 640;
+                    const h = video.videoHeight || 480;
+                    canvas.width = w;
+                    canvas.height = h;
+                };
+                video.onloadedmetadata = setCanvasSize;
+                video.onloadeddata = setCanvasSize;
+                video.onplay = setCanvasSize;
+                // Try immediately in case metadata is already available
+                if (video.readyState >= 2) {
+                    setCanvasSize();
+                }
+
+                // Start processing loop
+                processWebcamFrame();
+                enableCaptureIfReady();
+                toast('Webcam activated — YOLO detection running', 'success');
+
+            } catch (e) {
+                toast('Cannot access camera: ' + e.message, 'error');
+            }
+        }
+
+        function stopWebcam() {
+            if (state.webcamStream) {
+                state.webcamStream.getTracks().forEach(t => t.stop());
+                state.webcamStream = null;
+            }
+            if (state.webcamInterval) {
+                clearTimeout(state.webcamInterval);
+                state.webcamInterval = null;
+            }
+
+            state.webcamActive = false;
+            video.srcObject = null;
+            video.style.display = 'none';
+            canvas.style.display = 'none';
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            recBadge.classList.remove('live');
+            recText.textContent = 'IDLE';
+            feedInfo.textContent = 'AWAITING INPUT';
+            feedFPS.textContent = '';
+            uploadZone.classList.remove('hidden');
+
+            $('webcamBtn').classList.remove('active');
+            $('webcamBtn').innerHTML = `
+                <svg viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                Webcam
+            `;
+            $('stopBtn').disabled = true;
+
+            toast('Webcam stopped', 'info');
+        }
+
+        async function processWebcamFrame() {
+            if (!state.webcamActive) return;
+
+            try {
+                // Ensure canvas matches video dimensions
+                const vw = video.videoWidth || 640;
+                const vh = video.videoHeight || 480;
+                if (canvas.width !== vw || canvas.height !== vh) {
+                    canvas.width = vw;
+                    canvas.height = vh;
+                }
+
+                // Draw current video frame to canvas (fit to canvas)
+                ctx.drawImage(video, 0, 0, vw, vh);
+
+                // Get base64 of frame
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                const base64 = dataUrl.split(',')[1];
+
+                // Send to backend
+                const result = await processFrame(base64, state.confidence);
+
+                if (result) {
+                    // Draw result overlay on canvas
+                    if (result.result_image) {
+                        const img = new Image();
+                        img.onload = () => {
+                            const dw = canvas.width;
+                            const dh = canvas.height;
+                            ctx.clearRect(0, 0, dw, dh);
+                            ctx.drawImage(img, 0, 0, dw, dh);
+
+                            // Log detections
+                            for (const det of result.detections) {
+                                if ((det.class === 'violence' && state.showViolence) ||
+                                    (det.class === 'person' && state.showPerson)) {
+                                    addLogEntry(det.class, det.confidence);
+                                }
+                            }
+                        };
+                        img.src = `data:image/jpeg;base64,${result.result_image}`;
+                    }
+                }
+            } catch (e) {
+                // Silently continue
+            }
+
+            // Schedule next frame (~10 FPS for webcam to avoid overwhelming server)
+            state.webcamInterval = setTimeout(processWebcamFrame, 100);
+        }
+
+        // ============================================================
+        // File Handling
+        // ============================================================
+        function handleFile(file) {
+            if (!file) return;
+
+            const isImage = file.type.startsWith('image/');
+            const isVideo = file.type.startsWith('video/');
+
+            if (!isImage && !isVideo) {
+                toast('Unsupported file type. Upload an image or video.', 'error');
+                return;
+            }
+
+            // Stop webcam if active
+            if (state.webcamActive) stopWebcam();
+
+            detectFile(file, state.confidence);
+        }
+
+        // ============================================================
+        // Uptime
+        // ============================================================
+        function updateUptime() {
+            if (!state.uptimeStart) return;
+            const elapsed = Math.floor((Date.now() - state.uptimeStart) / 1000);
+            const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+            const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+            const s = String(elapsed % 60).padStart(2, '0');
+            $('statUptime').textContent = `${h}:${m}:${s}`;
+        }
+
+        // ============================================================
+        // Evidence Vault
+        // ============================================================
+        async function checkEvidenceService() {
+            try {
+                const resp = await fetch('/api/status');
+                if (!resp.ok) throw new Error('Backend offline');
+                evidenceStatus.className = 'evidence-status active';
+                evidenceStatusText.textContent = 'Online';
+                captureEvidenceBtn.disabled = false;
+            } catch (e) {
+                evidenceStatus.className = 'evidence-status error';
+                evidenceStatusText.textContent = 'Offline';
+                captureEvidenceBtn.disabled = true;
+            }
+        }
+
+        async function captureEvidence() {
+            if (captureEvidenceBtn.disabled) return;
+
+            captureEvidenceBtn.disabled = true;
+            captureEvidenceBtn.classList.add('saving');
+            captureBtnText.textContent = 'Saving...';
+
+            try {
+                let frameData;
+                let mimeType = 'image/jpeg';
+
+                // Lấy frame hiện tại từ canvas (webcam) hoặc result image
+                if (state.webcamActive) {
+                    frameData = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+                    mimeType = 'image/jpeg';
+                } else if (resultImage.src && resultImage.src.length > 10) {
+                    // Convert img src back to base64
+                    frameData = resultImage.src.split(',')[1];
+                    mimeType = 'image/jpeg';
+                } else {
+                    toast('No active frame to capture', 'warning');
+                    captureEvidenceBtn.disabled = false;
+                    captureBtnText.textContent = 'Capture Frame';
+                    return;
+                }
+
+                const now = Date.now();
+                const filename = `incident_${now}.jpg`;
+
+                const resp = await fetch('/api/evidence/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        frame: frameData,
+                        filename,
+                        mimeType,
+                        eventTimestamp: Math.floor(now / 1000),
+                        metadata: {
+                            source: state.webcamActive ? 'webcam' : 'upload',
+                            violenceCount: state.violenceEvents,
+                            personCount: state.personEvents,
+                            confidence: state.confidence,
+                        }
+                    })
+                });
+
+                const data = await resp.json();
+
+                if (data.success) {
+                    addEvidenceEntry(data);
+                    toast('Evidence saved — hash: ' + (data.file_hash || '').slice(0, 16) + '...', 'success');
+                } else {
+                    toast(data.error || 'Failed to save evidence', 'error');
+                }
+            } catch (e) {
+                toast('Evidence capture error: ' + e.message, 'error');
+            } finally {
+                captureEvidenceBtn.disabled = false;
+                captureEvidenceBtn.classList.remove('saving');
+                captureBtnText.textContent = 'Capture Frame';
+            }
+        }
+
+        function addEvidenceEntry(data) {
+            evidenceLogEmpty.style.display = 'none';
+            state.evidenceCount++;
+            evidenceLogCount.textContent = state.evidenceCount;
+
+            const chain = data.blockchain || {};
+            const ipfs = data.ipfs || {};
+            const shortHash = (data.file_hash || '').slice(0, 24) + '...';
+            const shortTx = (chain.txHash || '').slice(0, 16) + '...';
+            const tokenLabel = chain.tokenId != null ? `#${chain.tokenId}` : '—';
+
+            const entry = document.createElement('div');
+            entry.className = 'evidence-entry';
+            entry.innerHTML = `
+                <div class="evidence-entry-header">
+                    <span class="evidence-token">${tokenLabel}</span>
+                    <span class="evidence-time">${formatTime(new Date())}</span>
+                </div>
+                <div class="evidence-hash">SHA-256: ${shortHash}</div>
+                <div class="evidence-chain-badge ${ipfs.cid ? 'ipfs' : chain.txHash ? 'onchain' : 'local'}">
+                    ${ipfs.cid ? 'IPFS: ' + ipfs.cid.slice(0, 16) + '...' : chain.txHash ? 'TX: ' + shortTx : 'LOCAL ONLY'}
+                </div>
+            `;
+
+            evidenceLogBody.insertBefore(entry, evidenceLogBody.firstChild);
+
+            while (evidenceLogBody.children.length > 50) {
+                evidenceLogBody.removeChild(evidenceLogBody.lastChild);
+            }
+        }
+
+        // ============================================================
+        // Event Listeners
+        // ============================================================
+        $('webcamBtn').addEventListener('click', () => {
+            if (state.webcamActive) stopWebcam();
+            else startWebcam();
+        });
+
+        $('stopBtn').addEventListener('click', () => {
+            if (state.webcamActive) stopWebcam();
+            resultImageContainer.classList.remove('visible');
+            videoContainer.classList.remove('visible');
+            canvas.style.display = 'none';
+            uploadZone.classList.remove('hidden');
+            feedInfo.textContent = 'AWAITING INPUT';
+            state.resultImageShown = false;
+            state.resultVideoShown = false;
+        });
+
+        $('uploadBtn').addEventListener('click', () => fileInput.click());
+        uploadZone.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', e => {
+            handleFile(e.target.files[0]);
+            e.target.value = '';
+        });
+
+        uploadZone.addEventListener('dragover', e => {
+            e.preventDefault();
+            uploadZone.classList.add('drag-over');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('drag-over');
+        });
+
+        uploadZone.addEventListener('drop', e => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+            handleFile(e.dataTransfer.files[0]);
+        });
+
+        $('confSlider').addEventListener('input', e => {
+            state.confidence = e.target.value / 100;
+            $('confValue').textContent = state.confidence.toFixed(2);
+        });
+
+        $('checkPerson').addEventListener('change', e => { state.showPerson = e.target.checked; });
+        $('checkViolence').addEventListener('change', e => { state.showViolence = e.target.checked; });
+
+        $('pauseBtn').addEventListener('click', () => {
+            state.logPaused = !state.logPaused;
+            $('pauseBtn').textContent = state.logPaused ? 'Resume' : 'Pause';
+        });
+
+        $('clearBtn').addEventListener('click', () => {
+            logBody.innerHTML = '';
+            logBody.appendChild(logEmpty);
+            logEmpty.style.display = 'flex';
+            state.logCount = 0;
+            logCount.textContent = '0';
+            state.violenceEvents = 0;
+            state.personEvents = 0;
+            state.totalEvents = 0;
+            $('statViolence').textContent = '0';
+            $('statPersons').textContent = '0';
+            $('statTotal').textContent = '0';
+        });
+
+        captureEvidenceBtn.addEventListener('click', captureEvidence);
+
+        clearEvidenceBtn.addEventListener('click', () => {
+            evidenceLogBody.innerHTML = '';
+            evidenceLogBody.appendChild(evidenceLogEmpty);
+            evidenceLogEmpty.style.display = 'flex';
+            state.evidenceCount = 0;
+            evidenceLogCount.textContent = '0';
+        });
+
+        // ============================================================
+        // Init
+        // ============================================================
+        checkBackend();
+        setInterval(checkBackend, 30000);
+        setInterval(updateUptime, 1000);
+        checkEvidenceService();
+
+        // Enable capture button when webcam starts or image shown
+        function enableCaptureIfReady() {
+            if (state.webcamActive || state.resultImageShown) {
+                captureEvidenceBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,3 +1,25 @@
 venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.log
+
+# Blockchain / Hardhat
+web/blockchain/.env
+web/blockchain/node_modules/
+web/blockchain/cache/
+web/blockchain/artifacts/
+
+# Evidence & Uploads (local data)
+web/evidences/
+web/uploads/
+
+# Python bytecode
+

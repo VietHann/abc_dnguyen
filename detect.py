@@ -1,8 +1,6 @@
 import argparse
 import os
 import time
-import threading
-import queue
 from pathlib import Path
 
 import cv2
@@ -106,44 +104,23 @@ def run_realtime(model, args, camera_index=0):
 
     print(f"Camera {camera_index} opened. Press 'q' to quit.")
 
-    frame_queue = queue.Queue(maxsize=5)
+    frame_count = 0
+    fps = 0.0
+    start_time = time.time()
     violence_class = args.class_id
-    running = True
-
-    def read_frames():
-        while running:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            if frame_queue.full():
-                try:
-                    frame_queue.get_nowait()
-                except queue.Empty:
-                    pass
-            frame_queue.put(frame)
-
-    reader = threading.Thread(target=read_frames, daemon=True)
-    reader.start()
-
-    display_fps = 0.0
-    fps_update_time = time.time()
-    fps_frame_count = 0
     violence_frames = 0
     CONFIRM_THRESHOLD = 5
-    last_has_violence = False
 
     while True:
-        try:
-            frame = frame_queue.get(timeout=5)
-        except queue.Empty:
-            continue
+        ret, frame = cap.read()
+        if not ret:
+            print("Error: Failed to read frame from camera.")
+            break
 
-        fps_frame_count += 1
-        elapsed = time.time() - fps_update_time
-        if elapsed >= 1.0:
-            display_fps = fps_frame_count / elapsed
-            fps_frame_count = 0
-            fps_update_time = time.time()
+        frame_count += 1
+        elapsed = time.time() - start_time
+        if elapsed > 0:
+            fps = frame_count / elapsed
 
         results = model.predict(
             source=frame,
@@ -159,9 +136,11 @@ def run_realtime(model, args, camera_index=0):
         for box in boxes:
             cls_id = int(box.cls[0])
             conf = float(box.conf[0])
-            x1, y1, x2, y2 = int(box.xyxy[0][0]), int(box.xyxy[0][1]), int(box.xyxy[0][2]), int(box.xyxy[0][3])
+            x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
 
-            area = (x2 - x1) * (y2 - y1)
+            box_w = x2 - x1
+            box_h = y2 - y1
+            area = box_w * box_h
             frame_area = frame.shape[0] * frame.shape[1]
             if area < frame_area * 0.005:
                 continue
@@ -198,6 +177,16 @@ def run_realtime(model, args, camera_index=0):
                 2,
             )
 
+        cv2.putText(
+            frame,
+            f"FPS: {fps:.1f}",
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.0,
+            (0, 255, 255),
+            2,
+        )
+
         if has_violence:
             violence_frames += 1
         else:
@@ -213,30 +202,14 @@ def run_realtime(model, args, camera_index=0):
                 (0, 0, 255),
                 3,
             )
-            if not last_has_violence:
-                print(f"[!] Violence detected | FPS: {display_fps:.1f}")
-            last_has_violence = True
-        else:
-            last_has_violence = False
-
-        cv2.putText(
-            frame,
-            f"FPS: {display_fps:.1f}",
-            (10, 30),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1.0,
-            (0, 255, 255),
-            2,
-        )
+            print(f"[!] Violence detected | FPS: {fps:.1f}")
 
         cv2.imshow("Violence Detection", frame)
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
             print("Exiting...")
-            running = False
             break
 
-    reader.join(timeout=2)
     cap.release()
     cv2.destroyAllWindows()
 
